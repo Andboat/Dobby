@@ -1,0 +1,71 @@
+name: Build Dobby arm64
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 锁到官方发版 commit 5dfc854（2024-03-14 latest）
+      - name: Checkout Dobby at 5dfc854
+        uses: actions/checkout@v4
+        with:
+          ref: 5dfc854
+
+      # 2. 把苹果专用 @PAGE/@PAGEOFF 改成 GNU 写法
+      - name: Patch Apple-only asm directives
+        run: |
+          F="source/TrampolineBridge/ClosureTrampolineBridge/arm64/closure_bridge_arm64.asm"
+          echo "=== BEFORE ==="
+          grep -n "PAGE" "$F" || true
+          # 先替换长的 PAGEOFF，再替换短的 PAGE（顺序不能反）
+          sed -i -E 's/([A-Za-z0-9_.]+)@PAGEOFF/:lo12:\1/g' "$F"
+          sed -i -E 's/([A-Za-z0-9_.]+)@PAGE/\1/g' "$F"
+          echo "=== AFTER ==="
+          grep -n "common_closure_bridge_handler" "$F" || true
+
+      # 3. 装 NDK r25b
+      - name: Setup NDK r25b
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25b
+          add-to-path: true
+
+      # 4. 配置 CMake
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-21 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DDOBBY_DEBUG=OFF
+
+      # 5. 只编静态库
+      - name: Build dobby_static
+        run: cmake --build build --target dobby_static -j4
+
+      # 6. 编完先看一眼残留（第一轮只是摸底，不做清理）
+      - name: Inspect strings
+        if: always()
+        run: |
+          find build -name "libdobby.a" -exec ls -l {} \;
+          A=$(find build -name "libdobby.a" | head -1)
+          if [ -n "$A" ]; then
+            echo "=== dobby ==="
+            strings "$A" | grep -i "dobby" | head -20 || true
+            echo "=== runner path ==="
+            strings "$A" | grep "users/runner" | head -10 || true
+            echo "=== log fmt ==="
+            strings "$A" | grep -E '\[!\]|code!!!|%02x' | head -10 || true
+          fi
+
+      # 7. 上传产物
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libdobby-arm64-v8a
+          path: build/**/libdobby.a
+          if-no-files-found: error
