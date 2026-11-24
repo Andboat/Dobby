@@ -23,6 +23,35 @@ jobs:
           sed -i -E 's/([A-Za-z0-9_.]+)@PAGE/\1:pg_hi21:\1/g' "$F"
           echo "=== AFTER ==="
           grep -n "common_closure_bridge_handler" "$F" || true
+      - name: Patch broken sources
+        run: |
+          # 1) 给 os_arch_features.h 补 OSMemory 头（多路径自适应）
+          F="common/os_arch_features.h"
+          {
+            echo '// injected by CI to fix missing OSMemory'
+            echo '#if __has_include("source/PlatformUnifiedInterface/OSMemory.h")'
+            echo '#include "source/PlatformUnifiedInterface/OSMemory.h"'
+            echo '#elif __has_include("PlatformUnifiedInterface/OSMemory.h")'
+            echo '#include "PlatformUnifiedInterface/OSMemory.h"'
+            echo '#elif __has_include("source/Backend/UserMode/UnifiedInterface/OSMemory.h")'
+            echo '#include "source/Backend/UserMode/UnifiedInterface/OSMemory.h"'
+            echo '#endif'
+            cat "$F"
+          } > /tmp/oa && mv /tmp/oa "$F"
+
+          # 2) 把半成品旧文件从编译列表剔除
+          sed -i '/Backend\/UserMode\/PlatformUtil\/Linux\/ProcessRuntime\.cc/d' CMakeLists.txt || true
+          sed -i '/Backend\/UserMode\/ExecMemory\/code-patch-tool-posix\.cc/d' CMakeLists.txt || true
+
+      - name: Dump sources for diagnosis
+        if: always()
+        run: |
+          echo "=== locate headers ==="
+          find . \( -name OSMemory.h -o -name ProcessRuntime.h -o -name code-patch-tool*.cc \) -print
+          echo "=== RuntimeModule struct ==="
+          grep -rn -A 18 'struct RuntimeModule' source/ | head -50 || true
+          echo "=== code-patch-tool-posix.cc head ==="
+          sed -n '1,20p' source/Backend/UserMode/ExecMemory/code-patch-tool-posix.cc || true
 
       - name: Setup NDK r25b
         uses: nttld/setup-ndk@v1
