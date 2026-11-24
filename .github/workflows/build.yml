@@ -16,16 +16,12 @@ jobs:
 
       - name: Patch asm directives
         run: |
-          python3 - <<'PY'
-          p="source/TrampolineBridge/ClosureTrampolineBridge/arm64/closure_bridge_arm64.asm"
-          s=open(p,encoding='utf-8').read()
-          before=s
-          s=s.replace("common_closure_bridge_handler@PAGEOFF",":lo12:common_closure_bridge_handler")
-          s=s.replace("common_closure_bridge_handler@PAGE",":pg_hi21:common_closure_bridge_handler")
-          open(p,"w",encoding='utf-8').write(s)
-          print("ASM_CHANGED:", before!=s)
-          PY
+          F=source/TrampolineBridge/ClosureTrampolineBridge/arm64/closure_bridge_arm64.asm
+          sed -i 's/common_closure_bridge_handler@PAGEOFF/:lo12:common_closure_bridge_handler/g' "$F"
+          sed -i 's/common_closure_bridge_handler@PAGE/common_closure_bridge_handler/g' "$F"
+          grep -n 'common_closure_bridge_handler' "$F"
 
+      
       - name: Patch broken sources
         run: |
           F="common/os_arch_features.h"
