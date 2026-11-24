@@ -18,9 +18,9 @@ jobs:
         run: |
           F="source/TrampolineBridge/ClosureTrampolineBridge/arm64/closure_bridge_arm64.asm"
           echo "=== BEFORE ==="
-          grep -n "PAGE" "$F" || true
-          sed -i -E 's/([A-Za-z0-9_.]+)@PAGEOFF/:lo12:\1/g' "$F"
-          sed -i -E 's/([A-Za-z0-9_.]+)@PAGE/\1/g' "$F"
+          grep -n "@PAGE" "$F" || true
+          sed -i -E 's/([A-Za-z0-9_.]+)@PAGEOFF/\1:lo12:\1/g' "$F"
+          sed -i -E 's/([A-Za-z0-9_.]+)@PAGE/\1:pg_hi21:\1/g' "$F"
           echo "=== AFTER ==="
           grep -n "common_closure_bridge_handler" "$F" || true
 
