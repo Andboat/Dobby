@@ -8,10 +8,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # 1. 锁到官方发版 commit 5dfc854（2024-03-14 latest）
-      - name: Checkout Dobby at 5dfc854
+            - name: Checkout Dobby at stable tag
         uses: actions/checkout@v4
         with:
-          ref: 5dfc854
+          repository: jmpews/Dobby
+          ref: latest
+          fetch-depth: 0
+          path: dobby-src
+
 
       # 2. 把苹果专用 @PAGE/@PAGEOFF 改成 GNU 写法
       - name: Patch Apple-only asm directives
