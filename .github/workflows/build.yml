@@ -13,17 +13,23 @@ jobs:
           repository: jmpews/Dobby
           ref: latest
           fetch-depth: 0
-
-      - name: Patch Apple-only asm directives
+      - name: Patch asm directives
         run: |
-          F="source/TrampolineBridge/ClosureTrampolineBridge/arm64/closure_bridge_arm64.asm"
-          echo "=== BEFORE ==="
-          grep -n "@PAGE" "$F" || true
-          sed -i -E 's/([A-Za-z0-9_.]+)@PAGEOFF/\1:lo12:\1/g' "$F"
-          sed -i -E 's/([A-Za-z0-9_.]+)@PAGE/\1:pg_hi21:\1/g' "$F"
-          echo "=== AFTER ==="
-          grep -n "common_closure_bridge_handler" "$F" || true
-      - name: Patch broken sources
+          python3 - <<'PY'
+          p="source/TrampolineBridge/ClosureTrampolineBridge/arm64/closure_bridge_arm64.asm"
+          s=open(p,encoding='utf-8').read()
+          before=s
+          s=s.replace("common_closure_bridge_handler@PAGEOFF",":lo12:common_closure_bridge_handler")
+          s=s.replace("common_closure_bridge_handler@PAGE",":pg_hi21:common_closure_bridge_handler")
+          open(p,"w",encoding='utf-8').write(s)
+          print("CHANGED:", before!=s)
+          for i,l in enumerate(s.splitlines(),1):
+              if "common_closure_bridge_handler" in l:
+                  print(i, l)
+          PY
+
+
+           - name: Patch broken sources
         run: |
           # 1) 给 os_arch_features.h 补 OSMemory 头（多路径自适应）
           F="common/os_arch_features.h"
